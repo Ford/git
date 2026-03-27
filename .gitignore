@@ -191,6 +191,7 @@
 /git-worktree
 /git-write-tree
 /scalar
+/git-zat
 /git-core-*/?*
 /git.res
 /gitweb/GITWEB-BUILD-OPTIONS

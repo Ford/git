@@ -11,6 +11,7 @@
 #include "odb/streaming.h"
 #include "replace-object.h"
 #include "packfile.h"
+#include "zat-interface.h"
 
 #define FILTER_BUFFER (1024*16)
 
@@ -244,6 +245,7 @@ int odb_stream_blob_to_fd(struct object_database *odb,
 	struct odb_read_stream *st;
 	ssize_t kept = 0;
 	int result = -1;
+	int try_zat = zat_enabled;
 
 	st = odb_read_stream_open(odb, oid, filter);
 	if (!st) {
@@ -262,6 +264,11 @@ int odb_stream_blob_to_fd(struct object_database *odb,
 			goto close_and_exit;
 		if (!readlen)
 			break;
+		if (try_zat) {
+			result = zat_istream_to_fd(st, buf, readlen, sizeof(buf), fd);
+			if (result == 0) goto close_and_exit; // successful recompression
+			try_zat = 0; // just pipe to output as-is.
+		}
 		if (can_seek && sizeof(buf) == readlen) {
 			for (holeto = 0; holeto < readlen; holeto++)
 				if (buf[holeto])
