@@ -2,3 +2,6 @@
 	path = sha1collisiondetection
 	url = https://github.com/cr-marcstevens/sha1collisiondetection.git
 	branch = master
+[submodule "zat"]
+	path = zat
+	url = git@github.com:ford/zat.git

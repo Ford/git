@@ -965,6 +965,12 @@ ifeq ($(wildcard sha1collisiondetection/lib/sha1.h),sha1collisiondetection/lib/s
 DC_SHA1_SUBMODULE = auto
 endif
 
+ZAT_LIB = zat/lib.a
+GITLIBS += $(ZAT_LIB)
+
+$(ZAT_LIB):
+	$(MAKE) -C $(@D) $(@F)
+
 # Set CFLAGS, LDFLAGS and other *FLAGS variables. These might be
 # tweaked by config.* below as well as the command-line, both of
 # which'll override these defaults.
@@ -1362,6 +1368,7 @@ LIB_OBJS += write-or-die.o
 LIB_OBJS += ws.o
 LIB_OBJS += wt-status.o
 LIB_OBJS += xdiff-interface.o
+LIB_OBJS += zat-interface.o
 LIB_OBJS += xdiff/xdiffi.o
 LIB_OBJS += xdiff/xemit.o
 LIB_OBJS += xdiff/xhistogram.o
@@ -3719,6 +3726,7 @@ ifndef NO_PERL
 	$(INSTALL) -d -m 755 '$(DESTDIR_SQ)$(perllibdir_SQ)'
 	(cd perl/build/lib && $(TAR) cf - .) | \
 	(cd '$(DESTDIR_SQ)$(perllibdir_SQ)' && umask 022 && $(TAR) xof -)
+	$(MAKE) -C zat install-ext
 endif
 ifndef NO_TCLTK
 	$(MAKE) -C gitk-git install
@@ -3914,6 +3922,7 @@ clean: profile-clean coverage-clean cocciclean
 	$(RM) $(OBJECTS)
 	$(RM) headless-git.o
 	$(RM) $(LIB_FILE)
+	$(RM) $(ZAT_LIB)
 	$(RM) $(ALL_PROGRAMS) $(SCRIPT_LIB) $(BUILT_INS) $(OTHER_PROGRAMS)
 	$(RM) $(TEST_PROGRAMS)
 	$(RM) $(FUZZ_PROGRAMS)

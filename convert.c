@@ -19,6 +19,7 @@
 #include "trace.h"
 #include "utf8.h"
 #include "merge-ll.h"
+#include "zat-interface.h"
 
 /*
  * convert.c - convert a file when checking it out and checking it in.
@@ -1022,13 +1023,26 @@ static int apply_filter(const char *path, const char *src, size_t len,
 }
 
 static int read_convert_config(const char *var, const char *value,
-			       const struct config_context *ctx UNUSED,
+			       const struct config_context *ctx,
 			       void *cb UNUSED)
 {
 	const char *key, *name;
 	size_t namelen;
 	struct convert_driver *drv;
 
+	if (!strcmp(var, "zat.enabled")) {
+		zat_enabled = git_config_bool(var, value);
+		return 0;
+	}
+	if (!strcmp(var, "zat.recompress")) {
+		int level = git_config_int(var, value, ctx->kvi);
+		if (level == -1)
+			level = Z_DEFAULT_COMPRESSION;
+		else if (level < 0 || level > Z_BEST_COMPRESSION)
+			die(_("bad ZAT recompression level %d"), level);
+		zat_recompress = level;
+		return 0;
+	}
 	/*
 	 * External conversion drivers are configured using
 	 * "filter.<name>.variable".
@@ -1444,6 +1458,9 @@ int convert_to_git(struct index_state *istate,
 		len = dst->len;
 	}
 
+	if ( zat_enabled && zat_to_strbuf( ZAT_CLEAN, src, len, dst ) )
+		return 1; // Successly zatted, skip text-related conversions
+
 	ret |= encode_to_git(path, src, len, dst, ca.working_tree_encoding, conv_flags);
 	if (ret && dst) {
 		src = dst->buf;
@@ -1472,6 +1489,9 @@ void convert_to_git_filter_fd(struct index_state *istate,
 	if (!apply_filter(path, NULL, 0, fd, dst, ca.drv, CAP_CLEAN, NULL, NULL))
 		die(_("%s: clean filter '%s' failed"), path, ca.drv->name);
 
+	if ( zat_enabled && zat_to_strbuf( ZAT_CLEAN, dst->buf, dst->len, dst ) )
+		return; // Successly zatted, skip text-related conversions
+
 	encode_to_git(path, dst->buf, dst->len, dst, ca.working_tree_encoding, conv_flags);
 	crlf_to_git(istate, path, dst->buf, dst->len, dst, ca.crlf_action, conv_flags);
 	ident_to_git(dst->buf, dst->len, dst, ca.ident);
@@ -1486,6 +1506,11 @@ static int convert_to_working_tree_ca_internal(const struct conv_attrs *ca,
 {
 	int ret = 0, ret_filter = 0;
 
+	if ( zat_enabled && zat_to_strbuf( zat_recompress , src, len, dst ) ) {
+		src = dst->buf;
+		len = dst->len;
+		goto skip_text_conversions;
+	}
 	ret |= ident_to_worktree(src, len, dst, ca->ident);
 	if (ret) {
 		src = dst->buf;
@@ -1510,6 +1535,7 @@ static int convert_to_working_tree_ca_internal(const struct conv_attrs *ca,
 		len = dst->len;
 	}
 
+skip_text_conversions:
 	ret_filter = apply_filter(
 		path, src, len, -1, dst, ca->drv, CAP_SMUDGE, meta, dco);
 	if (!ret_filter && ca->drv && ca->drv->required)
